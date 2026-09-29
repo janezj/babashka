@@ -332,6 +332,27 @@
       (is (thrown-with-msg? Exception #"Cannot run program .* \(in directory \"\.\.[/\\]missingdir\"\)"
                             (bb "run" "foo"))))))
 
+(deftest default-task-test
+  (test-utils/with-config '{:tasks {foo (run 'typo)
+                                    dep (def x 10)
+                                    :default {:depends [dep]
+                                              :task [(:name (current-task)) x *command-line-args*]}}}
+    (testing "an unknown name runs :default as a task of that name"
+      (is (= '[bar 10 ("a" "b")] (bb "--prn" "bar" "a" "b")))
+      (is (= '[not-found.clj 10 nil] (bb "--prn" "not-found.clj"))))
+    (testing "a name no bb.edn could define, and a task that must exist, are unchanged"
+      (is (thrown-with-msg? Exception #"File does not exist: nil" (bb "nil")))
+      (is (thrown-with-msg? Exception #"No such task: typo" (bb "foo")))
+      (is (thrown-with-msg? Exception #"No such task: bar" (bb "run" "bar"))))
+    (testing "a directory is not a file"
+      (fs/create-dirs "default_task_dir")
+      (try (is (= '[default_task_dir 10 nil] (bb "--prn" "default_task_dir")))
+           (finally (fs/delete-if-exists "default_task_dir"))))
+    (testing "a file after an option is still the file"
+      (spit "default_task_test.clj" "(+ 1 2)")
+      (try (is (= 3 (bb "--prn" "-i" "default_task_test.clj")))
+           (finally (fs/delete-if-exists "default_task_test.clj"))))))
+
 (deftest list-tasks-test
   (test-utils/with-config {}
     (let [res (test-utils/bb nil "tasks")]

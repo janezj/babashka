@@ -630,6 +630,18 @@ Use bb run --help to show this help output.
           opts-map))
       opts-map)))
 
+(defn- default-task-name
+  "`opt` as the name of a task for `:default` to run: a simple symbol, not an
+  option, not a file."
+  [opt]
+  (when (contains? (:tasks @common/bb-edn) :default)
+    (let [sym (try (edn/read-string opt) (catch Exception _ nil))]
+      (when (and (simple-symbol? sym)
+                 (= opt (str sym))
+                 (not (str/starts-with? opt "-"))
+                 (not (fs/regular-file? opt)))
+        sym))))
+
 (defn parse-args [args opts-map]
   (loop [options args
          opts-map opts-map]
@@ -771,11 +783,16 @@ Use bb run --help to show this help output.
                     (assoc :prn true)
                     (update :expressions (fnil conj []) (first options))
                     (assoc :command-line-args (next options)))
-                (assoc opts-map
-                       (if (str/ends-with? opt ".jar")
-                         :jar
-                         :file) opt
-                       :command-line-args (next options)))))))
+                (if-let [task (default-task-name opt)]
+                  (assoc opts-map
+                         :run opt
+                         :default-task task
+                         :command-line-args (next options))
+                  (assoc opts-map
+                         (if (str/ends-with? opt ".jar")
+                           :jar
+                           :file) opt
+                         :command-line-args (next options))))))))
       opts-map)))
 
 (defn parse-global-opts [options]
@@ -840,7 +857,7 @@ Use bb run --help to show this help output.
        (binding [*out* *err*]
          (println "[babashka] WARNING: task(s)" (str/join ", " (map #(format "'%s'" %) commands)) "override built-in command(s). Use :override-builtin true to disable warning.")))
      (if-not opt opts-map
-             ;; FILE > TASK > SUBCOMMAND
+             ;; FILE > TASK > SUBCOMMAND > DEFAULT
              (cond
                (and (not (or (:file opts-map)
                              (:jar opts-map)))
@@ -1448,6 +1465,8 @@ Use bb run --help to show this help output.
                        edn (tasks/join-docs edn)]
                    (vreset! common/bb-edn edn)))
         opts (parse-opts args opts)
+        _ (when-let [task (:default-task opts)]
+            (vswap! common/bb-edn update :tasks #(assoc % task (:default %))))
         ;; A completion callback must never run what is on the line being
         ;; completed. The completed words go through the normal parsing above so
         ;; that global options like --config point completion at the right

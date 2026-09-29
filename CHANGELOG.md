@@ -7,6 +7,10 @@ A preview of the next release can be installed from
 
 [Babashka](https://github.com/babashka/babashka): Native, fast starting Clojure interpreter for scripting
 
+## Unreleased
+
+- [#1219](https://github.com/babashka/babashka/issues/1219): Add a `:default` task, run for a name that is not a task, file or command; `(current-task)` has the name
+
 ## 1.13.225 (2026-09-28)
 
 - [#2170](https://github.com/babashka/babashka/issues/2170): Read the docstring and `:org.babashka/cli` metadata of a var as `:exec-fn` or `:fn` in a task `:cmd` tree
